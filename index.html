@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Computer Room: BASIC</title>
+<style>
+    html, body {
+        margin: 0;
+        height: 100%;
+        background: #000;
+        overflow: hidden;
+    }
+    body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    canvas {
+        image-rendering: pixelated;
+        image-rendering: crisp-edges;
+    }
+    #bar {
+        position: fixed;
+        right: 8px;
+        bottom: 8px;
+        display: flex;
+        gap: 4px;
+        z-index: 10;
+    }
+    #bar button, #help button {
+        font: 12px/1.4 monospace;
+        color: #000;
+        background: #fff;
+        border: 1px solid #000;
+        padding: 2px 8px;
+        cursor: pointer;
+        opacity: 0.5;
+    }
+    #bar button:hover, #help button:hover {
+        opacity: 1;
+    }
+    #toast {
+        position: fixed;
+        left: 50%;
+        bottom: 12px;
+        transform: translateX(-50%);
+        font: 12px/1.4 monospace;
+        color: #000;
+        background: #fff;
+        padding: 2px 8px;
+        display: none;
+    }
+    #help {
+        position: fixed;
+        inset: 0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0, 0, 0, 0.85);
+        z-index: 20;
+    }
+    #help .card {
+        max-width: 560px;
+        max-height: 85vh;
+        overflow: auto;
+        margin: 16px;
+        padding: 16px 20px;
+        background: #fff;
+        color: #000;
+        font: 13px/1.5 monospace;
+    }
+    #help h2 {
+        font-size: 13px;
+        margin: 12px 0 4px;
+    }
+    #help h2:first-child {
+        margin-top: 0;
+    }
+    #help code {
+        background: #eee;
+        padding: 0 3px;
+    }
+    #help table {
+        border-collapse: collapse;
+    }
+    #help td {
+        padding: 1px 12px 1px 0;
+        vertical-align: top;
+    }
+    #help button {
+        opacity: 1;
+        margin-top: 12px;
+    }
+</style>
+<script src="font.js"></script>
+<script src="glyphs.js"></script>
+<script src="basic.js"></script>
+</head>
+<body>
+    <canvas id="screen"></canvas>
+    <div id="bar">
+        <button id="helpButton">help</button>
+        <button id="linkButton" title="copy a link that opens your program">link</button>
+        <button id="saveButton" title="download your program as a .bas text file">save</button>
+        <button id="openButton" title="open a .bas or .txt file">open</button>
+    </div>
+    <input id="fileInput" type="file" accept=".bas,.txt,text/plain" hidden>
+    <div id="toast"></div>
+    <div id="help">
+        <div class="card">
+            <h2>How it works</h2>
+            A line <b>with</b> a number is stored as part of the program.
+            A line <b>without</b> a number runs straight away.<br>
+            Try: <code>10 PRINT CHR$(205.5+RND(1));:GOTO 10</code>, Return, then <code>RUN</code>.
+            <h2>Keys</h2>
+            <table>
+                <tr><td>Esc</td><td>stop the program (RUN/STOP)</td></tr>
+                <tr><td>Shift + letter</td><td>graphic characters: Shift+M ╲, Shift+N ╱, Shift+Q ●, Shift+S ♥</td></tr>
+                <tr><td>Arrow keys</td><td>move the cursor anywhere. Change a line on screen and press Return to store it again.</td></tr>
+                <tr><td>Backspace</td><td>delete. Shift+Backspace inserts a space.</td></tr>
+                <tr><td>Ctrl+L</td><td>clear the screen</td></tr>
+                <tr><td>Cmd/Ctrl+V</td><td>paste a whole program</td></tr>
+            </table>
+            <h2>Commands</h2>
+            <table>
+                <tr><td>RUN</td><td>start the program</td></tr>
+                <tr><td>LIST</td><td>show it (<code>LIST 10-50</code>)</td></tr>
+                <tr><td>NEW</td><td>forget it</td></tr>
+                <tr><td>SAVE "NAME"</td><td>keep it in this browser</td></tr>
+                <tr><td>LOAD "NAME"</td><td>get it back. <code>LOAD "$"</code> lists what you saved.</td></tr>
+            </table>
+            <h2>Handing in</h2>
+            <b>link</b> copies a web address that opens your program; paste it anywhere.
+            <b>save</b> downloads it as a text file.
+            <h2>The language</h2>
+            PRINT, GOTO, IF…THEN, FOR…TO…STEP / NEXT, GOSUB / RETURN, INPUT, GET, DIM,
+            READ / DATA / RESTORE, DEF FN, ON…GOTO, POKE / PEEK, END, STOP, CONT, REM.
+            Functions: RND INT ABS SGN SQR SIN COS TAN ATN EXP LOG CHR$ ASC LEN LEFT$ RIGHT$ MID$ STR$ VAL TAB( SPC(.
+            The screen starts at address 32768: <code>POKE 32768,81</code> puts a ball in the top left corner.
+            <br>
+            <button id="closeHelp">close</button>
+        </div>
+    </div>
+<script>
+    ROOM.start(document.getElementById("screen"));
+    // Opening another program link in the same tab: start fresh with that program.
+    addEventListener("hashchange", function() {
+        if (/^#[pr]=/.test(location.hash) && location.hash !== ignoreHash) location.reload();
+    });
+    var ignoreHash = "";
+
+    var canvas = document.getElementById("screen");
+    function fit() {
+        var scale = Math.max(1, Math.floor(Math.min((innerWidth - 32) / 320, (innerHeight - 64) / 200)));
+        canvas.style.width = 320 * scale + "px";
+        canvas.style.height = 200 * scale + "px";
+    }
+    addEventListener("resize", fit);
+    fit();
+
+    var toast = document.getElementById("toast");
+    function say(text) {
+        toast.textContent = text;
+        toast.style.display = "block";
+        clearTimeout(say.timer);
+        say.timer = setTimeout(function() { toast.style.display = "none"; }, 2500);
+    }
+
+    var help = document.getElementById("help");
+    function showHelp(on) { help.style.display = on ? "flex" : "none"; }
+    document.getElementById("helpButton").onclick = function(e) { e.currentTarget.blur(); showHelp(true); };
+    document.getElementById("closeHelp").onclick = function() { showHelp(false); };
+    help.onclick = function(e) { if (e.target === help) showHelp(false); };
+    document.addEventListener("keydown", function(e) {
+        if (help.style.display === "flex" && e.key === "Escape") { showHelp(false); e.stopImmediatePropagation(); }
+    }, true);
+
+    document.getElementById("linkButton").onclick = function(e) {
+        e.currentTarget.blur();
+        var url = ROOM.shareLink();
+        ignoreHash = url.slice(url.indexOf("#"));
+        history.replaceState(null, "", url);
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(url).then(function() { say("link copied"); },
+                function() { say("link is in the address bar"); });
+        } else say("link is in the address bar");
+    };
+
+    document.getElementById("saveButton").onclick = function(e) {
+        e.currentTarget.blur();
+        var blob = new Blob([ROOM.exportProgram()], { type: "text/plain" });
+        var a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "program.bas";
+        a.click();
+        setTimeout(function() { URL.revokeObjectURL(a.href); }, 1000);
+    };
+
+    var fileInput = document.getElementById("fileInput");
+    document.getElementById("openButton").onclick = function(e) { e.currentTarget.blur(); fileInput.click(); };
+    function readFile(file) {
+        if (!file) return;
+        file.text().then(function(text) { ROOM.loadFile(text); });
+    }
+    fileInput.onchange = function() { readFile(fileInput.files[0]); fileInput.value = ""; };
+    addEventListener("dragover", function(e) { e.preventDefault(); });
+    addEventListener("drop", function(e) {
+        e.preventDefault();
+        readFile(e.dataTransfer.files[0]);
+    });
+</script>
+</body>
+</html>
